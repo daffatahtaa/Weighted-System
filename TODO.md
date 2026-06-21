@@ -35,9 +35,9 @@
 
 ### Momentum
 
-* [ ] RSI
-* [ ] Stochastic
-* [ ] Stochastic RSI
+* [x] RSI
+* [x] Stochastic
+* [x] Stochastic RSI
 * [ ] MACD
 * [ ] CCI
 * [ ] Momentum
