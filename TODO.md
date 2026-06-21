@@ -28,7 +28,7 @@
 
 ### Moving Average
 
-* [ ] EMA
+* [x] EMA
 * [ ] SMA
 * [ ] WMA
 * [ ] VWMA
