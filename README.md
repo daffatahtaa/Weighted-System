@@ -110,6 +110,31 @@ Net Confidence >= Entry Threshold
 
 ---
 
+# Documentation
+
+Dokumentasi lengkap tersedia di folder `docs/`:
+
+## Indicators
+
+| Dokumen | Deskripsi |
+|---------|-----------|
+| [EMA](docs/indicators/ema.md) | Exponential Moving Average — fast & slow EMA |
+| [Stochastic RSI](docs/indicators/stochastic_rsi.md) | StochRSI — RSI-based stochastic oscillator |
+| [ADX](docs/indicators/adx.md) | Average Directional Index — trend strength |
+| [ATR](docs/indicators/atr.md) | Average True Range — volatility measurement |
+| [Supertrend](docs/indicators/supertrend.md) | Trend-following indicator with ATR bands |
+
+## Strategy — Weighted System
+
+| Dokumen | Deskripsi |
+|---------|-----------|
+| [Overview](docs/strategy/overview.md) | Arsitektur sistem, diagram alur, komponen utama |
+| [Scoring Engine](docs/strategy/scoring-engine.md) | Detail scoring: Supertrend, StochRSI, EMA, ADX, CI, Persistence |
+| [Entry Methods](docs/strategy/entry-methods.md) | Single entry, Pyramid entry, Grid entry |
+| [Exit Methods](docs/strategy/exit-methods.md) | 7 metode exit: ST1/2/3, Scoring, Bars Since, dll |
+
+---
+
 # Architecture
 
 ```text
@@ -121,6 +146,17 @@ Weighted System
 ├── data/
 │
 ├── docs/
+│   ├── indicators/
+│   │   ├── adx.md
+│   │   ├── atr.md
+│   │   ├── ema.md
+│   │   ├── stochastic_rsi.md
+│   │   └── supertrend.md
+│   └── strategy/
+│       ├── overview.md
+│       ├── scoring-engine.md
+│       ├── entry-methods.md
+│       └── exit-methods.md
 │
 ├── src/
 │   │
