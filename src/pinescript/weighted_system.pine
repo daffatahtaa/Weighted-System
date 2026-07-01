@@ -1,0 +1,349 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © daffatahtaa
+
+//@version=6
+strategy("Weighted System", overlay=true, fill_orders_on_standard_ohlc = true, pyramiding = 100)
+import TradingView/ta/12
+
+// ----------- CONSTANT ----------
+EXT_1 = "Supertrend 1"
+EXT_2 = "Supertrend 2"
+EXT_3 = "Supertrend 3"
+EXT_4 = "Scoring"
+EXT_5 = "Scoring & Long EMA"
+EXT_6 = "Scoring Bars Since Treshold"
+EXT_7 = "Scoring Bars Since Treshold + Slow EMA"
+
+EXT_CONFIG = "Config"
+EXT_CONFIG_MA = "Moving Average"
+EXT_CONFIG_ST1 = "Supertrend 1"
+
+EXT_ENTRY1 = "Single"
+EXT_ENTRY2 = "PYRAMID"
+EXT_ENTRY3 = "GRID"
+
+
+// ----------- CONFIG ----------- 
+allowLong = input(true, "Allow Long Entry", group = EXT_CONFIG)
+allowShort = input(true, "Allow Short Entry", group = EXT_CONFIG)
+entryMethod = input.string(EXT_ENTRY1, "Entry Position Method", [EXT_ENTRY1, EXT_ENTRY2, EXT_ENTRY3], "Choose based on your risk profile", group = EXT_CONFIG)
+maxPyramid = input.int(5, "Max Pyramid", minval = 1)
+pyramidMultiplier = input.int(5, "Multiplier increment for pyramid", tooltip = "Weighted entry value + Multiplier", minval = 1)
+weightedEntryValue = input.int(100, "Minimum Weighted Entry Value", tooltip = "Entry confidence", group = EXT_CONFIG, minval = 0)
+exitPositionMethod = input.string("Supertrend 3", "Method to exit the trades", options = [EXT_1, EXT_2, EXT_3, EXT_4, EXT_5, EXT_6, EXT_7], group = EXT_CONFIG)
+exitScoring = input.int(50, "Exit Scoring", tooltip = "Only used when SCORING exit selected. If below the score it will close the trade", group = EXT_CONFIG)
+
+
+
+// ----------- MOVING AVERAGE ----------- 
+showEma = input (true, "Show EMA?", group = EXT_CONFIG_MA)
+showFastEma = input (false, "Show Fast EMA?", group = EXT_CONFIG_MA)
+ema = input(200, "EMA Value", group = EXT_CONFIG_MA)
+useFastEma = input (true, "Use Fast EMA?", group = EXT_CONFIG_MA)
+fastEma = input(20, "Fast EMA Value", group = EXT_CONFIG_MA)
+
+
+
+emaValue = ta.ema(close, ema)
+
+plot(showEma ? emaValue : na, color = color.blue, linewidth = 2)
+
+fastEmaValue = useFastEma ? ta.ema(close, fastEma) : na
+plot(showFastEma ? fastEmaValue : na, color = color.green, linewidth = 1)
+
+//----------- SUPERTREND 1 ----------- 
+showSuperTrend1 = input(false, "Show Supertrend Indicator", group = EXT_CONFIG_ST1)
+stPeriod1 = input(10, "Supertrend 1 Period", group = EXT_CONFIG_ST1)
+atrMultiplier1 = input (1, "Supertrend 1 ATR Multiplier", group = EXT_CONFIG_ST1)
+
+[st, direction] = ta.supertrend(atrMultiplier1, stPeriod1, true)
+plot(showSuperTrend1 ? st : na, color = direction < 0 ? color.green : color.red, linewidth = 2)
+
+// ----------- SUPERTREND 2 ----------- 
+showSuperTrend2 = input(false, "Show Supertrend Indicator", group = "Supertrend 2")
+stPeriod2 = input(11, "Supertrend 2 Period", group = "Supertrend 2")
+atrMultiplier2 = input (2, "Supertrend 2 ATR Multiplier", group = "Supertrend 2")
+
+[st2, direction2] = ta.supertrend(atrMultiplier2, stPeriod2, true)
+plot(showSuperTrend2 ? st2 : na, color = direction2 < 0 ? color.green : color.red, linewidth = 2)
+
+// ----------- SUPERTREND 3 ----------- 
+showSuperTrend3 = input(false, "Show Supertrend Indicator", group = "Supertrend 3")
+stPeriod3 = input(12, "Supertrend 3 Period", group = "Supertrend 3")
+atrMultiplier3 = input (3, "Supertrend 3 ATR Multiplier", group = "Supertrend 3")
+
+[st3, direction3] = ta.supertrend(atrMultiplier3, stPeriod3, true)
+plot(showSuperTrend3 ? st3 : na, color = direction3 < 0 ? color.green : color.red, linewidth = 2)
+
+// ----------- RSI ----------- 
+rsiPeriod = input(14, "RSI Period", group = "Stochastic RSI")
+periodK = input(14, "Period K", group = "Stochastic RSI")
+smoothK = input(3, "Smooth K", group = "Stochastic RSI")
+smoothD = input(3, "Smooth D", group = "Stochastic RSI")
+oversoldStoch = input(20, "Oversold Stochastic", group = "Stochastic RSI")
+overboughtStoch = input(80, "Overbought Stochastic", group = "Stochastic RSI")
+
+[stochK, stochD] = ta.stochRsi(rsiPeriod, periodK, smoothK, smoothD, close)
+
+// ----------- CHOPPINESS INDEX ----------- 
+useChoppinessIndex = input(true, "Use Choppiness Index", group = "Choppiness Index")
+length = input.int(14, minval=1, group = "Choppiness Index")
+chopTreshold = input.float(38.2, minval = 1, tooltip = "Lower values = Trend, Higher = Choppy", group = "Choppiness Index")
+
+ci = 100 * math.log10(math.sum(ta.atr(1), length) / (ta.highest(length) - ta.lowest(length))) / math.log10(length)
+
+isTrendingCI = ci < chopTreshold
+
+// ----------- ADX ----------- 
+useAdxFilter = input(true, "Use ADX Filter", group = "ADX Filter")
+adxTreshold = input.int(25, "ADX Treshold", tooltip = "ADX Treshold for trend", group = "ADX Filter")
+diLength = input.int(14, minval = 1, title  = "DI Length", group = "ADX Filter")
+adxSmooth = input.int(14, minval = 1, title = "Smoothing ADX", group = "ADX Filter")
+[diplus, diminus, adx] = ta.dmi(diLength, adxSmooth)
+
+isTrendingADX = adx > adxTreshold
+
+
+
+
+
+
+// ----------- TREND FILTER ----------- 
+chopFilter = useChoppinessIndex ? isTrendingCI : true
+adxFilter = useAdxFilter ? isTrendingADX : true
+
+
+
+greenCount=(direction<0?1:0) + (direction2<0?1:0) + (direction3<0?1:0)
+redCount=(direction > 0 ? 1 : 0 ) + (direction2 > 0 ? 1 : 0 ) + (direction3 > 0 ? 1 : 0 )
+
+// ----------- SCORING LONG ----------- 
+longScore = 0
+
+// SUPERTREND SCORING
+stFlip = direction[1] > 0 and direction < 0
+stFlip2 = direction2[1] > 0 and direction2 < 0
+stFlip3 = direction3[1] > 0 and direction3 < 0
+
+longScore += stFlip ? 10 : 0
+longScore += stFlip2 ? 5 : 0
+longScore += stFlip3 ? 5 : 0
+if greenCount == 2
+    longScore += 10
+if greenCount == 3
+    longScore += 15
+longScore += direction < 0 ? 5 : 0
+longScore += direction2 < 0 ? 10 : 0
+longScore += direction3 < 0 ? 10 : 0
+
+
+// SCORING STOCHASTIC
+longScore += ta.crossover(stochK, stochD) ? 10 : 0  // k line cross up d line
+longScore += stochK > oversoldStoch ? 10 : 0        // k line diatas oversold
+longScore += stochK > stochD ? 10 : 0               // k line diatas d line
+longScore += stochK >  stochK[1] ? 5 : 0            // k line current lebih besar dari -1 k line
+longScore += stochD > stochD[1] ?  5 : 0            
+longScore += ta.crossover(stochK, oversoldStoch) ? 10 : 0
+// longScore += stochK > 20 ? 10 : 0
+// longScore += ta.crossover(stochK, 20) ? 10 : 0
+longScore += stochK > 50 ? 10 : 0
+if (ta.crossover(stochK, stochD) and stochK < oversoldStoch)
+    longScore += 30
+
+
+// SCORING EMA
+if (useFastEma) 
+    longScore += ta.crossover(close, fastEmaValue) ? 5 : 0
+    longScore += ta.crossover(fastEmaValue, emaValue) ? 5 : 0
+    longScore += close > fastEmaValue ? 5 : 0
+    longScore += fastEmaValue > fastEmaValue[1] ? 10 : 0
+
+emaDistance = math.abs(close - emaValue) / emaValue * 100
+if emaDistance < 1
+    longScore += 15
+
+if emaDistance < 2
+    longScore += 10
+    
+if emaDistance < 3
+    longScore += 5
+
+longScore += emaValue > emaValue[1] ? 5 : 0
+longScore += emaValue > emaValue[5] ? 5 : 0
+longScore += emaValue > emaValue[10] ? 5 : 0
+longScore += close > emaValue ? 5 : 0
+
+// ADX SCORING
+longScore += adx > adxTreshold ? 10 : 0
+longScore += adx > adx[1] ? 10 : 0
+longScore += diplus > diminus ? 15 : 0
+longScore += ta.crossover(diplus, diminus) ? 20 : 0
+longScore += diplus > diminus and adx > adxTreshold ? 20 :0
+longScore += adx > 30 ? 10 : 0
+longScore += (adx - adx[1]) > (adx[1] - adx[2]) ? 10 : 0
+
+// CHOPPINESS INDEX SCORING
+longScore += ci < 30 ? 10 : 0
+longScore += ci < ci[1] ? 5 : 0
+
+// PERSISTANCE SCORING
+longScore += direction < 0 and direction[1] < 0 ? 5 : 0
+longScore += direction2 < 0 and direction2[1] < 0 ? 5 : 0
+longScore += direction3 < 0 and direction3[1] < 0 ? 5 : 0
+longScore += stochK > stochK[1] and stochK[1] > stochK[2] and stochK[2] > stochK[3] ? 5 : 0
+longScore += adx > adx[1] and adx[1] > adx[2] ? 5 : 0
+longScore += emaValue > emaValue [1] and fastEmaValue > fastEmaValue[1] ? 5 : 0
+
+
+// ----------- SCORING SHORT ----------- 
+shortScore = 0
+
+// SUPERTREND SCORING SHORT
+stShortFlip = direction[1] < 0 and direction > 0
+stShortFlip2 = direction2[1] < 0 and direction2 > 0
+stShortFlip3 = direction3[1] < 0 and direction3 > 0
+
+shortScore += stShortFlip ? 10 : 0
+shortScore += stShortFlip2 ? 5 : 0
+shortScore += stShortFlip3 ? 5 : 0
+if redCount == 2
+    shortScore += 10
+if redCount == 3
+    shortScore += 15
+shortScore += direction > 0 ? 5 : 0
+shortScore += direction2 > 0 ? 10 : 0
+shortScore += direction3 > 0 ? 10 : 0
+
+// SCORING STOCHASTIC SHORT
+shortScore += ta.crossunder(stochK, stochD) ? 10 : 0  // k line cross down d line
+shortScore += stochK < overboughtStoch ? 10 : 0        // k line dibawah overbought
+shortScore += stochK < stochD ? 10 : 0                 // k line dibawah d line
+shortScore += stochK < stochK[1] ? 5 : 0               // k line current lebih kecil dari -1 k line
+shortScore += stochD < stochD[1] ? 5 : 0
+shortScore += ta.crossunder(stochK, overboughtStoch) ? 10 : 0
+shortScore += stochK < 50 ? 10 : 0
+if (ta.crossunder(stochK, stochD) and stochK > overboughtStoch)
+    shortScore += 30
+
+// SCORING EMA SHORT
+if (useFastEma)
+    shortScore += ta.crossunder(close, fastEmaValue) ? 5 : 0
+    shortScore += ta.crossunder(fastEmaValue, emaValue) ? 5 : 0
+    shortScore += close < fastEmaValue ? 5 : 0
+    shortScore += fastEmaValue < fastEmaValue[1] ? 10 : 0
+
+emaDistanceShort = math.abs(close - emaValue) / emaValue * 100
+if emaDistanceShort < 1
+    shortScore += 15
+if emaDistanceShort < 2
+    shortScore += 10
+if emaDistanceShort < 3
+    shortScore += 5
+
+shortScore += emaValue < emaValue[1] ? 5 : 0
+shortScore += emaValue < emaValue[5] ? 5 : 0
+shortScore += emaValue < emaValue[10] ? 5 : 0
+shortScore += close < emaValue ? 5 : 0
+
+// ADX SCORING SHORT
+shortScore += adx > adxTreshold ? 10 : 0
+shortScore += adx > adx[1] ? 10 : 0
+shortScore += diminus > diplus ? 15 : 0
+shortScore += ta.crossunder(diplus, diminus) ? 20 : 0
+shortScore += diminus > diplus and adx > adxTreshold ? 20 : 0
+shortScore += adx > 30 ? 10 : 0
+shortScore += (adx - adx[1]) > (adx[1] - adx[2]) ? 10 : 0
+
+// CHOPPINESS INDEX SCORING SHORT
+shortScore += ci < 30 ? 10 : 0
+shortScore += ci < ci[1] ? 5 : 0
+
+// PERSISTANCE SCORING SHORT
+shortScore += direction > 0 and direction[1] > 0 ? 5 : 0
+shortScore += direction2 > 0 and direction2[1] > 0 ? 5 : 0
+shortScore += direction3 > 0 and direction3[1] > 0 ? 5 : 0
+shortScore += stochK < stochK[1] and stochK[1] < stochK[2] and stochK[2] < stochK[3] ? 5 : 0
+shortScore += adx > adx[1] and adx[1] > adx[2] ? 5 : 0
+shortScore += emaValue < emaValue[1] and fastEmaValue < fastEmaValue[1] ? 5 : 0
+
+// ----------- ENTRY ----------- 
+longCondition = close > emaValue and chopFilter and adxFilter and longScore >= weightedEntryValue ? true : false
+
+scoreWeakLong = longScore < exitScoring
+scoreWeakLongPersist = scoreWeakLong and scoreWeakLong[1] and scoreWeakLong[2]
+
+exitLong = switch exitPositionMethod
+    EXT_1 => ta.crossunder(close, st)
+    EXT_2 => ta.crossunder(close, st2)
+    EXT_3 => ta.crossunder(close, st3)
+    EXT_4 => longScore < exitScoring
+    EXT_5 => longScore < exitScoring or close < emaValue
+    EXT_6 => ta.barssince(longScore > exitScoring ) > 2
+    EXT_7 => ta.barssince(longScore > exitScoring ) > 2 and close < emaValue
+
+// SINGLE
+if (entryMethod == EXT_ENTRY1 and longCondition and allowLong and strategy.position_size == 0)
+    strategy.entry("Long", strategy.long, comment = str.tostring(longScore))
+
+// PYRAMID
+if (entryMethod == EXT_ENTRY2 and longCondition and allowLong)
+    for i = 0 to maxPyramid by +1
+        requiredScore = weightedEntryValue + (pyramidMultiplier * i)
+        if strategy.opentrades == i and longScore >= requiredScore
+            strategy.entry("Long_" + str.tostring(i + 1), strategy.long, comment = "Long_" + str.tostring(i + 1) + "\n" + str.tostring(longScore))
+    
+// ---------- EXIT LONG ----------
+if entryMethod == EXT_ENTRY1 and strategy.position_size > 0 and exitLong
+    strategy.close("Long", str.tostring(longScore))
+
+if entryMethod == EXT_ENTRY2 and strategy.position_size > 0 and exitLong
+    for i = 0 to maxPyramid by +1
+        strategy.close("Long_" + str.tostring(i + 1))
+
+
+scoreWeakShort = shortScore < exitScoring
+scoreWeakShortPersist = scoreWeakShort and scoreWeakShort[1] and scoreWeakShort[2]
+
+shortCondition = close < emaValue and chopFilter and adxFilter and shortScore >= weightedEntryValue ? true : false
+
+exitShort = switch exitPositionMethod
+    EXT_1 => ta.crossover(close, st)
+    EXT_2 => ta.crossover(close, st2)
+    EXT_3 => ta.crossover(close, st3)
+    EXT_4 => shortScore < exitScoring
+    EXT_5 => shortScore < exitScoring or close > emaValue
+    EXT_6 => ta.barssince(shortScore > exitScoring) > 2
+    EXT_7 => ta.barssince(shortScore > exitScoring) > 2 and close > emaValue
+
+// SINGLE SHORT
+if (entryMethod == EXT_ENTRY1 and shortCondition and allowShort and strategy.position_size == 0)
+    strategy.entry("Short", strategy.short, comment = str.tostring(shortScore))
+
+// PYRAMID SHORT
+if (entryMethod == EXT_ENTRY2 and shortCondition and allowShort)
+    for i = 0 to maxPyramid by +1
+        requiredScore = weightedEntryValue + (pyramidMultiplier * i)
+        if strategy.opentrades == i and shortScore >= requiredScore
+            strategy.entry("Short_" + str.tostring(i + 1), strategy.short, comment = "Short_" + str.tostring(i + 1) + "\n" + str.tostring(shortScore))
+
+// ---------- EXIT SHORT ----------
+if entryMethod == EXT_ENTRY1 and strategy.position_size < 0 and exitShort
+    strategy.close("Short", str.tostring(shortScore))
+
+if entryMethod == EXT_ENTRY2 and strategy.position_size < 0 and exitShort
+    for i = 0 to maxPyramid by +1
+        strategy.close("Short_" + str.tostring(i + 1))
+
+
+
+
+
+
+
+
+// ---------- OLD CONDITIONS | FOR REFERENCE ONLY ----------
+// shortCondition = close < emaValue and ta.crossunder(stochK, stochD) and stochK < overboughtStoch and ta.crossunder(close, st) and chopFilter
+// longCondition = close > emaValue and ta.crossover(stochK, stochD) and stochK[1] < oversoldTreshold and stCrossRecently and chopFilter
+// exitLong = ta.crossunder(close, st3) or ta.crossunder(close, emaValue)
+// if (longCondition and allowLong and strategy.position_size == 0)
+//     strategy.entry("Long", strategy.long, comment = "Long " + str.tostring(longScore))
