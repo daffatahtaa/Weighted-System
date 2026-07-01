@@ -62,9 +62,10 @@ ATR adalah rata-rata dari TR selama N periode. Ada dua metode:
 
 #### Metode A: Simple Moving Average (SMA) — `use_wilder=False`
 
+
 $$
 ATR_t = \frac{1}{\text{length}} \sum_{i=1}^{\text{length}} TR_{t-i+1}
-```
+$$
 
 Implementasi:
 ```python
@@ -77,7 +78,7 @@ Mirip dengan metode yang digunakan di ADX. Nilai pertama adalah SMA, lalu:
 
 $$
 ATR_t = \frac{ATR_{t-1} \times (\text{length} - 1) + TR_t}{\text{length}}
-```
+$$
 
 Implementasi:
 ```python
