@@ -770,3 +770,354 @@ Entry if: raw_score ≥ regime_threshold AND P(win) ≥ 0.6
 | **Robust** | ✅ | ⚠️ Tergantung data | ✅✅ |
 | **Feature selection** | ❌ Manual | ✅✅ Otomatis (L1) | ✅✅ |
 | **Total** | **Mulai** | **Scale** | **Best of both** |
+
+---
+
+## 8. Advanced Feature Engineering & Dataset Pipeline
+
+> Insights dari ChatGPT tentang bagaimana menyiapkan data untuk Logistic Regression.
+
+### 8.1 Evolution Path
+
+```
+Weighted Matrix (current)
+        ↓
+Dynamic Weighted Matrix (adaptive bobot)
+        ↓
+Statistical Model — Logistic Regression (baseline ML)
+        ↓
+Tree-based ML — Random Forest / XGBoost (complex patterns)
+```
+
+Setiap tahap adalah **foundation** untuk tahap berikutnya. Jangan lompat.
+
+### 8.2 Dataset Structure
+
+Setiap trade disimpan sebagai satu baris:
+
+| EMA | ST | RSI | ADX | ATR | Vol Spike | Win |
+|-----|-----|-----|-----|-----|-----------|-----|
+| 1 | 1 | 68 | 34 | 1.2 | 1 | 1 |
+| 1 | 1 | 55 | 29 | 1.0 | 0 | 1 |
+| 1 | 0 | 47 | 18 | 0.8 | 0 | 0 |
+| 0 | 0 | 39 | 15 | 0.7 | 0 | 0 |
+
+**Catatan penting:** Tidak semua feature harus boolean. Model bisa menerima campuran:
+
+| Tipe Data | Contoh Feature |
+|-----------|---------------|
+| **Binary (0/1)** | EMA Alignment, ST Signal, Volume Spike |
+| **Continuous** | RSI (0-100), ADX (0-100) |
+| **Float** | ATR (1.73), Price distance (%) |
+
+### 8.3 Feature Engineering Lanjutan
+
+Daripada memberi model feature mentah, buat feature yang **lebih bermakna**:
+
+| Feature Mentah | Feature Engineered | Alasan |
+|----------------|-------------------|--------|
+| `close > ema200` | `ema_distance_pct = (close - ema200) / ema200 * 100` | Model tahu **seberapa jauh**, bukan cuma di atas/bawah |
+| `stoch_k = 63` | `stoch_distance_from_50 = stoch_k - 50` | Model tahu **momentum bias** (+13 = bullish, -13 = bearish) |
+| `atr = 1.5` | `atr_percentile_100 = percentile(atr, 100)` | Model tahu **posisi relatif** dalam historical range |
+| `direction < 0` | `price_to_st_atr = (close - st) / atr` | Model tahu **jarak harga ke ST dalam satuan ATR** |
+| `ema_slope = 2.4` | `ema_slope_angle = atan(ema_slope) * 180 / pi` | Model bisa bedakan slope landai vs curam |
+
+#### Contoh Implementasi Feature Engineering
+
+```python
+def build_advanced_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Feature engineering tingkat lanjut untuk Logistic Regression."""
+    f = pd.DataFrame(index=df.index)
+
+    # === DISTANCE-BASED FEATURES ===
+    # Bukan cuma "close > EMA", tapi seberapa jauh
+    f["ema200_dist_pct"] = (df["close"] - df["ema200"]) / df["ema200"] * 100
+    f["ema20_dist_pct"] = (df["close"] - df["ema20"]) / df["ema20"] * 100
+    f["ema20_50_dist"] = (df["ema20"] - df["ema50"]) / df["ema50"] * 100
+
+    # === SLOPE-BASED FEATURES ===
+    # Sudut kemiringan EMA dalam derajat
+    ema_slope = df["ema200"] - df["ema200"].shift(5)
+    f["ema200_slope_angle"] = np.degrees(np.arctan(ema_slope / df["close"]))
+    
+    fast_slope = df["ema20"] - df["ema20"].shift(3)
+    f["ema20_slope_angle"] = np.degrees(np.arctan(fast_slope / df["close"]))
+
+    # === VOLATILITY-ADJUSTED FEATURES ===
+    # Jarak harga ke Supertrend dalam satuan ATR
+    f["price_to_st1_atr"] = (df["close"] - df["st1"]) / df["atr"]
+    f["price_to_st2_atr"] = (df["close"] - df["st2"]) / df["atr"]
+    f["price_to_st3_atr"] = (df["close"] - df["st3"]) / df["atr"]
+
+    # ATR Percentile — posisi ATR dalam 100 candle terakhir
+    f["atr_percentile_100"] = df["atr"].rolling(100).apply(
+        lambda x: (x[-1] > x).mean() * 100, raw=True
+    )
+
+    # === MOMENTUM FEATURES ===
+    # RSI distance from midline (50)
+    f["rsi_dist_from_50"] = df["rsi"] - 50
+    
+    # Stochastic RSI distance
+    f["stoch_k_dist_50"] = df["stoch_k"] - 50
+    f["stoch_k_d_diff"] = df["stoch_k"] - df["stoch_d"]
+
+    # ADX quality — bukan cuma > 25, tapi seberapa kuat
+    f["adx_strength"] = df["adx"] / 100  # normalize 0-1
+    f["adx_momentum"] = df["adx"] - df["adx"].shift(5)
+    
+    # DI dominance
+    f["di_balance"] = df["diplus"] - df["diminus"]
+    f["di_balance_normalized"] = (df["diplus"] - df["diminus"]) / (df["diplus"] + df["diminus"] + 1e-10)
+
+    # === CHOPPINESS FEATURES ===
+    f["ci_inverse"] = 100 - df["ci"]  # higher = more trending
+    f["ci_momentum"] = df["ci"] - df["ci"].shift(3)
+
+    # === PERSISTENCE FEATURES ===
+    # Berapa bar sejak ST terakhir flip?
+    f["st1_bars_since_flip"] = bars_since_flip(df["direction1"])
+    f["st2_bars_since_flip"] = bars_since_flip(df["direction2"])
+    f["st3_bars_since_flip"] = bars_since_flip(df["direction3"])
+
+    # Rata-rata skor dalam 5 bar terakhir
+    f["score_ma5"] = df["raw_score"].rolling(5).mean()
+    f["score_momentum"] = df["raw_score"] - df["raw_score"].shift(3)
+
+    return f
+
+
+def bars_since_flip(direction_series: pd.Series) -> pd.Series:
+    """Hitung jumlah bar sejak Supertrend berubah arah."""
+    flip = (direction_series.shift(1) > 0) & (direction_series < 0)
+    flip |= (direction_series.shift(1) < 0) & (direction_series > 0)
+    
+    result = pd.Series(0, index=direction_series.index)
+    counter = 0
+    for i in range(len(direction_series)):
+        if flip.iloc[i]:
+            counter = 0
+        else:
+            counter += 1
+        result.iloc[i] = counter
+    return result
+```
+
+### 8.4 Yang Dipelajari Model
+
+Model mencari persamaan:
+
+```
+z = β₀ + β₁·EMA + β₂·ST + β₃·RSI + β₄·ADX + β₅·Volume + ...
+P(win) = sigmoid(z)
+```
+
+Setelah training, misalnya didapat:
+
+| Feature | β (koefisien) |
+|---------|---------------|
+| Intercept (β₀) | -4.0 |
+| Supertrend | +2.4 |
+| EMA Alignment | +1.9 |
+| ADX | +0.15 |
+| RSI | +0.02 |
+| MACD Histogram | +0.31 |
+
+**Contoh interpretasi:**
+
+Suatu trade memiliki data:
+- EMA = 1, ST = 1, RSI = 62, ADX = 29, Volume = 1
+
+```
+z = -4.0 + 1.9 + 2.4 + (62 × 0.02) + (29 × 0.15) + 1.1
+z = 6.19
+
+P(win) = 1 / (1 + e^(-6.19)) = 0.998 → 99.8%
+```
+
+**Arti koefisien:**
+
+- **Supertrend (+2.4)**: Dengan feature lain tetap, adanya sinyal ST memberikan pengaruh positif **paling besar**
+- **RSI (+0.02)**: RSI membantu, tapi kontribusinya **relatif kecil** dibanding feature lain
+- L1 regularization akan otomatis **men-drop feature yang tidak berguna** (koefisien = 0)
+
+Poin penting: Logistic Regression bisa menangkap kontradiksi yang tidak bisa ditangkap Weighted Matrix.
+
+> Contoh: EMA buy + ST buy + RSI = 51 + ADX = 14
+> 
+> Weighted Matrix mungkin tetap kasih score tinggi, tapi Logistic Regression akan kasih P(win) rendah karena ADX rendah mengindikasikan pasar tidak trending — sehingga sinyal EMA dan ST tidak bisa dipercaya.
+
+### 8.5 Linear Limitation — Kapan Logistic Regression Mulai Mentok
+
+Logistic Regression menganggap hubungan antar-feature **linear**. Padahal market sering tidak linear:
+
+```
+ADX 10 → buruk
+ADX 20 → lumayan
+ADX 35 → bagus
+ADX 60 → justru terlalu terlambat (sudah over-extended)
+```
+
+Hubungan U-shape atau inverted-U seperti ini tidak bisa ditangkap Logistic Regression tanpa **feature engineering tambahan**.
+
+**Solusi dengan feature engineering:**
+
+```python
+# Biarkan model belajar non-linearitas via polynomial features
+from sklearn.preprocessing import PolynomialFeatures
+
+poly = PolynomialFeatures(degree=2, include_bias=False, interaction_only=False)
+X_poly = poly.fit_transform(X)
+
+# Atau buat feature eksplisit:
+features["adx_squared"] = features["adx"] ** 2
+features["adx_optimal_distance"] = abs(features["adx"] - 35)
+```
+
+**Interaksi 3 arah** juga tidak otomatis dipelajari:
+
+> "EMA Cross bagus HANYA JIKA Supertrend Buy DAN ADX > 25"
+
+Untuk interaksi seperti ini, buat feature eksplisit:
+
+```python
+features["ema_st_adx_interaction"] = (
+    (features["ema_alignment"] == 1) &
+    (features["st_direction"] == 1) &
+    (features["adx"] > 25)
+).astype(int)
+```
+
+### 8.6 Dataset Pipeline — Dari OHLCV ke Training Data
+
+```python
+class TradingDatasetBuilder:
+    """
+    Pipeline lengkap: OHLCV → Indicators → Features → Labels
+    """
+    
+    def __init__(self, config: dict):
+        self.config = config
+        
+    def load_ohlcv(self, path: str) -> pd.DataFrame:
+        """Load historical price data."""
+        df = pd.read_csv(path, parse_dates=["timestamp"])
+        df = df.sort_values("timestamp").reset_index(drop=True)
+        return df
+    
+    def compute_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Hitung semua indikator."""
+        # EMA
+        df["ema20"] = ta.ema(df["close"], 20)
+        df["ema50"] = ta.ema(df["close"], 50)
+        df["ema200"] = ta.ema(df["close"], 200)
+        
+        # Supertrend
+        df["st1"], df["dir1"] = ta.supertrend(df, 1, 10)
+        df["st2"], df["dir2"] = ta.supertrend(df, 2, 11)
+        df["st3"], df["dir3"] = ta.supertrend(df, 3, 12)
+        
+        # ADX
+        df["adx"], df["diplus"], df["diminus"] = ta.adx(df, 14)
+        
+        # Stochastic RSI
+        df["stoch_k"], df["stoch_d"] = ta.stoch_rsi(df, 14, 14, 3, 3)
+        
+        # Choppiness Index
+        df["ci"] = ta.choppiness_index(df, 14)
+        
+        # ATR
+        df["atr"] = ta.atr(df, 14)
+        
+        return df
+    
+    def compute_labels(self, df: pd.DataFrame, forward_bars: int = 10) -> pd.DataFrame:
+        """
+        Buat label untuk training.
+        
+        Label = 1 jika harga forward_bars lebih tinggi dari entry price.
+        Label = 0 jika sebaliknya.
+        """
+        df["future_close"] = df["close"].shift(-forward_bars)
+        df["trade_win"] = (df["future_close"] > df["close"]).astype(int)
+        return df
+    
+    def create_entry_mask(self, df: pd.DataFrame) -> pd.Series:
+        """
+        Mask untuk bar di mana sistem melakukan entry.
+        Hanya bar ini yang dipakai untuk training.
+        """
+        if self.config.get("use_existing_strategy"):
+            # Gunakan sinyal dari strategy yang sudah ada
+            return df["entry_signal"] != 0
+        else:
+            # Atau: sample semua bar (untuk generic model)
+            return pd.Series(True, index=df.index)
+    
+    def build_dataset(self, ohlcv_path: str) -> tuple:
+        """Pipeline lengkap."""
+        df = self.load_ohlcv(ohlcv_path)
+        df = self.compute_indicators(df)
+        df = self.compute_labels(df, forward_bars=10)
+        
+        # Feature engineering
+        X = build_advanced_features(df)
+        y = df["trade_win"]
+        
+        # Mask hanya bar entry
+        mask = self.create_entry_mask(df)
+        X = X[mask].dropna()
+        y = y[mask].loc[X.index]
+        
+        return X, y
+```
+
+### 8.7 Roadmap Implementasi
+
+```
+Phase 1 — Dataset
+[ ] Setup data pipeline (OHLCV loader)
+[ ] Implement indicator computation
+[ ] Implement label creation (forward look)
+[ ] Export ke CSV untuk inspeksi manual
+
+Phase 2 — Baseline Logistic Regression
+[ ] Train dengan binary features (dari scoring engine)
+[ ] Evaluasi: AUC, confusion matrix, profit curve
+[ ] Bandingkan dengan manual scoring — apakah lebih baik?
+
+Phase 3 — Feature Engineering
+[ ] Implement advanced features (distance, slope, percentile)
+[ ] Feature selection via L1 regularization
+[ ] Analisis koefisien — feature mana paling prediktif?
+
+Phase 4 — Regime-Specific Models
+[ ] Train 3 model terpisah (trending, ranging, volatile)
+[ ] Bandingkan performa vs single model
+[ ] Implement regime-aware prediction
+
+Phase 5 — Threshold Optimization
+[ ] Optimasi threshold per regime via backtest
+[ ] Implement hybrid: manual scoring + LR confirmation
+
+Phase 6 — Tree-based Comparison (optional)
+[ ] XGBoost / LightGBM
+[ ] Bandingkan: apakah non-linear patterns signifikan?
+[ ] Jika iya → upgrade. Jika tidak → stick ke Logistic Regression.
+```
+
+### 8.8 Kapan Upgrade ke XGBoost
+
+Logistic Regression sudah cukup jika:
+- ✅ Feature engineering sudah maksimal
+- ✅ AUC sudah > 0.70
+- ✅ Koefisien stabil antar periode
+- ✅ Tidak ada interaksi kompleks yang terlewat
+
+Pertimbangkan XGBoost jika:
+- ❌ AUC stuck di < 0.65 meskipun feature sudah di-improve
+- ❌ Ada interaksi non-linear yang jelas (ADX U-shape, dll)
+- ❌ Dataset sudah > 2000 samples
+- ❌ Regime-specific models tidak cukup membantu
+
+**Prinsip:** Jangan komplikasi tanpa bukti. Logistic Regression yang baik bisa mengalahkan XGBoost yang asal-asalan.
