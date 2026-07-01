@@ -2,11 +2,33 @@
 
 ## 1. Foundation
 
-* [ ] Setup Python project structure
+* [x] Setup Python project structure (pyproject.toml, Pipfile)
 * [ ] Create configuration loader
 * [ ] Create logger utility
 * [ ] Add environment support (.env)
 * [ ] Create common helper functions
+* [ ] Isi pyproject.toml dengan dependencies (pandas, numpy, scikit-learn, ta)
+
+---
+
+## 1b. Market Regime (Layer 1)
+
+* [ ] Hurst Exponent implementation
+* [ ] ATR %Rank (percentile-based volatility)
+* [ ] Regime classifier (ADX + CI + Hurst + ATR %Rank)
+* [ ] Regime output: trending / ranging / volatile
+* [ ] Adaptive parameter mapping per regime
+* [ ] Regime-aware threshold selection
+
+---
+
+## 1c. Direction Filter (Layer 2)
+
+* [ ] EMA 50/200 alignment scoring
+* [ ] 3x Supertrend consensus (majority vote)
+* [ ] Higher timeframe bias detection
+* [ ] Conviction score (0-100)
+* [ ] Neutral direction gating logic (skip trade)
 
 ---
 
@@ -24,6 +46,29 @@
 
 ---
 
+## 2b. Dataset Pipeline for ML
+
+* [ ] OHLCV → Indicators → Features pipeline
+* [ ] Label creation (forward-looking return, N bar)
+* [ ] Entry bar masking (hanya bar entry untuk training)
+* [ ] Train/validation/test split (chronological, no look-ahead)
+* [ ] Export dataset ke CSV untuk analisis manual
+
+---
+
+## 2c. Feature Engineering
+
+* [ ] Distance-based features (% from EMA, ATR)
+* [ ] Slope-based features (sudut kemiringan EMA dalam derajat)
+* [ ] Volatility-adjusted features (price-to-ST in ATR units)
+* [ ] Momentum features (RSI distance from 50)
+* [ ] ADX quality features (normalized 0-1, momentum)
+* [ ] Persistence features (bars since last flip)
+* [ ] Interaction features (EMA + ST + ADX combo)
+* [ ] Polynomial features (non-linear patterns: ADX squared)
+
+---
+
 ## 3. Indicator Migration
 
 ### Moving Average
@@ -35,8 +80,8 @@
 
 ### Momentum
 
-* [x] RSI
-* [x] Stochastic
+* [x] RSI (di stochastic_rsi.py)
+* [x] Stochastic (di stochastic_rsi.py)
 * [x] Stochastic RSI
 * [ ] MACD
 * [ ] CCI
@@ -45,16 +90,15 @@
 
 ### Trend
 
-* [ ] Supertrend
-* [ ] ADX
-* [ ] DMI
+* [x] Supertrend (src/indicators/supertrend.py)
+* [x] ADX + DMI (src/indicators/adx.py — includes +DI, -DI, DX)
 * [ ] Choppiness Index
 * [ ] Parabolic SAR
 * [ ] Ichimoku
 
 ### Volatility
 
-* [ ] ATR
+* [x] ATR (src/indicators/atr.py — includes Wilder's smoothing option)
 * [ ] Bollinger Bands
 * [ ] Keltner Channel
 * [ ] Donchian Channel
@@ -154,6 +198,8 @@ net_score = 110
 * [ ] Partial TP
 * [ ] Break even
 * [ ] Time based exit
+* [ ] Regime-adaptive exit method selection
+* [ ] Exit method auto-switch based on Layer 1 regime
 
 ---
 
@@ -194,17 +240,44 @@ Metrics:
 * [ ] Mutual information
 * [ ] Feature importance
 
-### Machine Learning
+### Logistic Regression (Baseline)
+
+* [ ] Dataset preparation (features + labels)
+* [ ] L1 regularization (automatic feature selection)
+* [ ] Regime-specific models (1 model per regime)
+* [ ] Threshold optimization via ROC curve
+* [ ] Probability calibration (Platt scaling)
+* [ ] Coefficient analysis (feature importance)
+
+### Tree-Based (Advanced)
 
 * [ ] Random Forest
 * [ ] XGBoost
 * [ ] LightGBM
 * [ ] CatBoost
+* [ ] Model comparison: Logistic Regression vs Tree-based
 
 ### Reinforcement Learning
 
 * [ ] PPO
 * [ ] DQN
+
+### Hybrid Decision Engine
+
+* [ ] Manual scoring → normalized score (0-100)
+* [ ] Logistic Regression → P(win)
+* [ ] AND logic: score ≥ threshold AND P(win) ≥ threshold
+* [ ] Conflict resolution (scoring bilang entry, LR bilang skip)
+* [ ] Mode switching: manual-only / LR-only / hybrid
+
+### Model Evaluation
+
+* [ ] AUC-ROC score
+* [ ] Precision / Recall / F1
+* [ ] Confusion matrix
+* [ ] Profit curve (threshold vs expectancy)
+* [ ] Walk-forward validation
+* [ ] Time series cross-validation
 
 ---
 
@@ -215,7 +288,10 @@ Metrics:
 * [ ] Monthly recalibration
 * [ ] Quarterly recalibration
 * [ ] Rolling window optimization
-* [ ] Regime detection
+* [ ] Regime-aware threshold calibration
+* [ ] Adaptive pyramid per regime (size, multiplier)
+* [ ] Adaptive exit method per regime
+* [ ] Periodic retrain schedule (monthly / quarterly)
 
 ---
 
@@ -241,16 +317,32 @@ Metrics:
 
 ---
 
+## 12b. Src Structure
+
+* [ ] `src/core/` — masih kosong
+* [ ] `src/features/` — masih kosong
+* [ ] `src/datasource/` — masih kosong
+* [ ] `src/backtest/` — masih kosong
+* [ ] `src/ml/` — masih kosong
+* [ ] `src/optimizer/` — masih kosong
+* [ ] `config/` — masih kosong
+* [ ] `data/` — masih kosong
+* [ ] `tests/` — masih kosong
+
+---
+
 ## 13. Research Ideas
 
 * [ ] Add every TradingView default indicator
 * [ ] Introduce negative confidence scoring
-* [ ] Regime classifier
-* [ ] Ensemble models
-* [ ] Bayesian optimization
+* [ ] Ensemble models (stacking LR + XGBoost)
+* [ ] Bayesian optimization for hyperparams
 * [ ] Genetic Algorithm optimizer
-* [ ] Explainable AI scoring
+* [ ] Explainable AI (SHAP / LIME untuk koefisien LR)
 * [ ] Meta strategy selector
+* [ ] Attention-based feature weighting
+* [ ] Online learning (model update real-time)
+* [ ] Multi-timeframe feature fusion
 
 ---
 
