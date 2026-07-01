@@ -75,8 +75,6 @@
 
 * [x] EMA
 * [ ] SMA
-* [ ] WMA
-* [ ] VWMA
 
 ### Momentum
 
@@ -84,31 +82,39 @@
 * [x] Stochastic (di stochastic_rsi.py)
 * [x] Stochastic RSI
 * [ ] MACD
-* [ ] CCI
-* [ ] Momentum
-* [ ] ROC
 
 ### Trend
 
 * [x] Supertrend (src/indicators/supertrend.py)
 * [x] ADX + DMI (src/indicators/adx.py — includes +DI, -DI, DX)
 * [ ] Choppiness Index
-* [ ] Parabolic SAR
-* [ ] Ichimoku
+* [ ] Hurst Exponent
 
 ### Volatility
 
 * [x] ATR (src/indicators/atr.py — includes Wilder's smoothing option)
-* [ ] Bollinger Bands
-* [ ] Keltner Channel
-* [ ] Donchian Channel
+* [ ] Bollinger Bands (%B + Width)
+* [ ] ATR %Rank (percentile-based)
 
 ### Volume
 
-* [ ] OBV
-* [ ] CMF
-* [ ] MFI
-* [ ] VWAP
+* [ ] MFI (Money Flow Index)
+
+### Candlestick Patterns (Layer 3)
+
+* [ ] Bullish / Bearish Engulfing
+* [ ] Hammer / Shooting Star
+* [ ] Doji (indecision)
+* [ ] Pin Bar (long wick rejection)
+* [ ] Three Soldiers / Three Crows
+* [ ] Score hanya jika pola terjadi di level signifikan
+
+### Price Action Features (Layer 2 + Layer 3)
+
+* [ ] Higher High / Higher Low count (trend persistence)
+* [ ] Swing distance to nearest swing high/low (dalam ATR)
+* [ ] Inside bar detection
+* [ ] Range contraction (bandingkan range dengan N bar sebelumnya)
 
 ---
 
@@ -333,8 +339,9 @@ Metrics:
 
 ## 13. Research Ideas
 
-* [ ] Add every TradingView default indicator
 * [ ] Introduce negative confidence scoring
+* [ ] SMA, CCI, ROC, Momentum, OBV (low priority — jika nanti perlu)
+* [ ] WMA, VWMA, Keltner, Donchian, Parabolic SAR, Ichimoku (intentionally skipped — redundant)
 * [ ] Ensemble models (stacking LR + XGBoost)
 * [ ] Bayesian optimization for hyperparams
 * [ ] Genetic Algorithm optimizer
